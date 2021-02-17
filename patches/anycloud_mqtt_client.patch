@@ -1,0 +1,181 @@
+From f718b86f1d63b557686b605721cc7586c571a87a Mon Sep 17 00:00:00 2001
+From: "wenxin.leong" <wenxin.leong@infineon.com>
+Date: Sun, 7 Feb 2021 21:55:12 -0800
+Subject: [PATCH] TPM integration
+
+---
+ Makefile                      |  7 +++++--
+ configs/mbedtls_user_config.h | 12 ++++++------
+ configs/mqtt_client_config.h  | 29 +++++++++++++++++++++--------
+ source/mqtt_task.c            |  3 +++
+ source/mqtt_task.h            |  2 +-
+ 5 files changed, 36 insertions(+), 17 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index 3ac2a9e..816c1ab 100644
+--- a/Makefile
++++ b/Makefile
+@@ -85,7 +85,7 @@ ENABLE_SECURE_MOSQUITTO_BROKER_SUPPORT=0
+ # ... then code in directories named COMPONENT_foo and COMPONENT_bar will be
+ # added to the build
+ #
+-COMPONENTS=FREERTOS LWIP MBEDTLS RTOS_AWARE
++COMPONENTS=FREERTOS LWIP MBEDTLS RTOS_AWARE TPM
+ 
+ # Like COMPONENTS, but disable optional code that was enabled by default.
+ DISABLE_COMPONENTS=
+@@ -103,8 +103,11 @@ INCLUDES=./configs
+ # Custom configuration of mbedtls library.
+ MBEDTLSFLAGS = MBEDTLS_USER_CONFIG_FILE='"mbedtls_user_config.h"'
+ 
++# Custom configuration of tpm library.
++TPMFLAGS = MAXLOGLEVEL=0 TSS2_TCTI_SUPPRESS_POLL_WARNINGS MBED
++
+ # Add additional defines to the build process (without a leading -D).
+-DEFINES=$(MBEDTLSFLAGS) CYBSP_WIFI_CAPABLE CY_RETARGET_IO_CONVERT_LF_TO_CRLF 
++DEFINES=$(MBEDTLSFLAGS) CYBSP_WIFI_CAPABLE CY_RETARGET_IO_CONVERT_LF_TO_CRLF $(TPMFLAGS)
+ 
+ # Enable support for Mosquitto Broker based on 'ENABLE_SECURE_MOSQUITTO_BROKER_
+ # SUPPORT' variable. See the MQTT Client library's README for more information.
+diff --git a/configs/mbedtls_user_config.h b/configs/mbedtls_user_config.h
+index 200f5ec..f38203a 100644
+--- a/configs/mbedtls_user_config.h
++++ b/configs/mbedtls_user_config.h
+@@ -394,7 +394,7 @@
+  *
+  * Comment this macro to disallow using RSASSA-PSS in certificates.
+  */
+-#undef MBEDTLS_X509_RSASSA_PSS_SUPPORT
++#define MBEDTLS_X509_RSASSA_PSS_SUPPORT
+ 
+ /**
+  * \def MBEDTLS_AESNI_C
+@@ -488,7 +488,7 @@
+  *
+  * This module is used for reading X.509 certificate request.
+  */
+-#undef MBEDTLS_X509_CSR_PARSE_C
++#define MBEDTLS_X509_CSR_PARSE_C
+ 
+ /**
+  * \def MBEDTLS_X509_CREATE_C
+@@ -501,7 +501,7 @@
+  *
+  * This module is the basis for creating X.509 certificates and CSRs.
+  */
+-#undef MBEDTLS_X509_CREATE_C
++#define MBEDTLS_X509_CREATE_C
+ 
+ /**
+  * \def MBEDTLS_X509_CSR_WRITE_C
+@@ -514,7 +514,7 @@
+  *
+  * This module is required for X.509 certificate request writing.
+  */
+-#undef MBEDTLS_X509_CSR_WRITE_C
++#define MBEDTLS_X509_CSR_WRITE_C
+ 
+ /**
+  * \def MBEDTLS_X509_CRT_WRITE_C
+@@ -527,7 +527,7 @@
+  *
+  * This module is required for X.509 certificate creation.
+  */
+-#undef MBEDTLS_X509_CRT_WRITE_C
++#define MBEDTLS_X509_CRT_WRITE_C
+ 
+ /**
+  * \def MBEDTLS_CERTS_C
+@@ -585,7 +585,7 @@
+  *
+  * Comment this macro to disable support for external private RSA keys.
+  */
+-#undef MBEDTLS_PK_RSA_ALT_SUPPORT
++#define MBEDTLS_PK_RSA_ALT_SUPPORT
+ 
+ /**
+  * \def MBEDTLS_ARC4_C
+diff --git a/configs/mqtt_client_config.h b/configs/mqtt_client_config.h
+index 7ba863a..abb3a64 100644
+--- a/configs/mqtt_client_config.h
++++ b/configs/mqtt_client_config.h
+@@ -86,7 +86,7 @@
+ #define MQTT_MESSAGES_QOS                 ( 1 )
+ 
+ /* Configure the user credentials to be sent as part of MQTT CONNECT packet */
+-#define MQTT_USERNAME                     "User"
++#define MQTT_USERNAME                     ""
+ #define MQTT_PASSWORD                     ""
+ 
+ /* The timeout in milliseconds for MQTT operations in this example. */
+@@ -136,20 +136,33 @@
+ /* Configure the below credentials in case of a secure MQTT connection. */
+ /* PEM-encoded client certificate */
+ #define CLIENT_CERTIFICATE      \
+-"-----BEGIN CERTIFICATE-----\n" \
+-"........base64 data........\n" \
+-"-----END CERTIFICATE-----"
++""
+ 
+ /* PEM-encoded client private key */
+ #define CLIENT_PRIVATE_KEY          \
+-"-----BEGIN RSA PRIVATE KEY-----\n" \
+-"..........base64 data..........\n" \
+-"-----END RSA PRIVATE KEY-----"
++""
+ 
+ /* PEM-encoded Root CA certificate */
+ #define ROOT_CA_CERTIFICATE     \
+ "-----BEGIN CERTIFICATE-----\n" \
+-"........base64 data........\n" \
++"MIIDQTCCAimgAwIBAgITBmyfz5m/jAo54vB4ikPmljZbyjANBgkqhkiG9w0BAQsF\n" \
++"ADA5MQswCQYDVQQGEwJVUzEPMA0GA1UEChMGQW1hem9uMRkwFwYDVQQDExBBbWF6\n" \
++"b24gUm9vdCBDQSAxMB4XDTE1MDUyNjAwMDAwMFoXDTM4MDExNzAwMDAwMFowOTEL\n" \
++"MAkGA1UEBhMCVVMxDzANBgNVBAoTBkFtYXpvbjEZMBcGA1UEAxMQQW1hem9uIFJv\n" \
++"b3QgQ0EgMTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBALJ4gHHKeNXj\n" \
++"ca9HgFB0fW7Y14h29Jlo91ghYPl0hAEvrAIthtOgQ3pOsqTQNroBvo3bSMgHFzZM\n" \
++"9O6II8c+6zf1tRn4SWiw3te5djgdYZ6k/oI2peVKVuRF4fn9tBb6dNqcmzU5L/qw\n" \
++"IFAGbHrQgLKm+a/sRxmPUDgH3KKHOVj4utWp+UhnMJbulHheb4mjUcAwhmahRWa6\n" \
++"VOujw5H5SNz/0egwLX0tdHA114gk957EWW67c4cX8jJGKLhD+rcdqsq08p8kDi1L\n" \
++"93FcXmn/6pUCyziKrlA4b9v7LWIbxcceVOF34GfID5yHI9Y/QCB/IIDEgEw+OyQm\n" \
++"jgSubJrIqg0CAwEAAaNCMEAwDwYDVR0TAQH/BAUwAwEB/zAOBgNVHQ8BAf8EBAMC\n" \
++"AYYwHQYDVR0OBBYEFIQYzIU07LwMlJQuCFmcx7IQTgoIMA0GCSqGSIb3DQEBCwUA\n" \
++"A4IBAQCY8jdaQZChGsV2USggNiMOruYou6r4lK5IpDB/G/wkjUu0yKGX9rbxenDI\n" \
++"U5PMCCjjmCXPI6T53iHTfIUJrU6adTrCC2qJeHZERxhlbI1Bjjt/msv0tadQ1wUs\n" \
++"N+gDS63pYaACbvXy8MWy7Vu33PqUXHeeE6V/Uq2V8viTO96LXFvKWlJbYK8U90vv\n" \
++"o/ufQJVtMVT8QtPHRh8jrdkPSHCa2XV4cdFyQzR1bldZwgJcJmApzyMZFo6IQ6XU\n" \
++"5MsI+yMRQ+hDKXJioaldXgjUkK642M4UwtBV8ob2xJNDd2ZhwLnoQdeXeGADbkpy\n" \
++"rqXRfboQnoZsG4q5WTP468SQvvG5\n" \
+ "-----END CERTIFICATE-----"
+ 
+ /******************************************************************************
+diff --git a/source/mqtt_task.c b/source/mqtt_task.c
+index 1ab7d0c..acfdd4b 100644
+--- a/source/mqtt_task.c
++++ b/source/mqtt_task.c
+@@ -155,6 +155,9 @@ void mqtt_client_task(void *pvParameters)
+     /* To avoid compiler warnings */
+     (void)pvParameters;
+ 
++    /* TPM provisioning and CSR generation */
++    tpm_task();
++
+     /* Create a message queue to communicate MQTT operation results 
+      * between various tasks and callbacks.
+      */
+diff --git a/source/mqtt_task.h b/source/mqtt_task.h
+index 3c31f5b..10959a2 100644
+--- a/source/mqtt_task.h
++++ b/source/mqtt_task.h
+@@ -49,7 +49,7 @@
+ ********************************************************************************/
+ /* Task parameters for MQTT Client Task. */
+ #define MQTT_CLIENT_TASK_PRIORITY       (2)
+-#define MQTT_CLIENT_TASK_STACK_SIZE     (1024 * 2)
++#define MQTT_CLIENT_TASK_STACK_SIZE     (1024 * 5)
+ 
+ /*******************************************************************************
+ * Global Variables
+-- 
+2.17.1
+

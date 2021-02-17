@@ -1,0 +1,46 @@
+From 655ff17e6cd7691e8f91597cf4b55d5ab3e43e20 Mon Sep 17 00:00:00 2001
+From: "wenxin.leong" <wenxin.leong@infineon.com>
+Date: Sun, 7 Feb 2021 21:58:56 -0800
+Subject: [PATCH] TPM integration
+
+---
+ source/COMPONENT_MBEDTLS/cy_tls.c | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/source/COMPONENT_MBEDTLS/cy_tls.c b/source/COMPONENT_MBEDTLS/cy_tls.c
+index 4d89176..5a83a04 100644
+--- a/source/COMPONENT_MBEDTLS/cy_tls.c
++++ b/source/COMPONENT_MBEDTLS/cy_tls.c
+@@ -29,6 +29,7 @@
+ #include "cyabs_rtos.h"
+ #include "cy_log.h"
+ #include "cy_result_mw.h"
++#include "mbedtls_tpmt_api.h"
+ #include <mbedtls/ssl.h>
+ #include <mbedtls/entropy.h>
+ #include <mbedtls/ctr_drbg.h>
+@@ -421,6 +422,9 @@ cy_rslt_t cy_tls_create_identity(const char *certificate_data, const uint32_t ce
+             tls_cy_log_msg(CYLF_MIDDLEWARE, CY_LOG_ERR, "mbedtls_pk_parse_key failed with error %d\r\n", ret);
+             result = CY_RSLT_MODULE_TLS_PARSE_KEY;
+         }
++    } else {
++        /* load TPM key */
++        mbedtls_tpmt_pkctx_init(&identity->private_key);
+     }
+ 
+     if( result != CY_RSLT_SUCCESS)
+@@ -443,6 +447,11 @@ cy_rslt_t cy_tls_delete_identity(void *tls_identity )
+         return CY_RSLT_MODULE_TLS_BADARG;
+     }
+     mbedtls_x509_crt_free(&identity->certificate);
++
++    if ( mbedtls_pk_get_type( &identity->private_key ) == MBEDTLS_PK_RSA_ALT ) {
++        mbedtls_tpmt_pkctx_free(&identity->private_key);
++    }
++
+     mbedtls_pk_free(&identity->private_key);
+ 
+     free(identity);
+-- 
+2.17.1
+
