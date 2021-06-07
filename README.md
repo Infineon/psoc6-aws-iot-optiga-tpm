@@ -1,4 +1,4 @@
-# PSoC 6 Onboarding to AWS IoT Core using OPTIGA™ TPM SLx 9670 TPM2.0
+# PSoC 6 Onboarding to AWS IoT Core</br> using OPTIGA™ TPM SLx 9670 TPM2.0
 
 ## Introduction
 
