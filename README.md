@@ -135,7 +135,7 @@ Software prerequisites:
    $ git checkout d0632dabe8557754705f8d38ffffdafc9f4865d1
    ```
    ```
-   $ git clone https://github.com/wxleong/psoc6-aws-iot-optiga-tpm ~/psoc6-aws-iot-optiga-tpm
+   $ git clone https://github.com/infineon/psoc6-aws-iot-optiga-tpm ~/psoc6-aws-iot-optiga-tpm
    ```
 4. Extract the compilation flags from the MTB project:
    ```all
