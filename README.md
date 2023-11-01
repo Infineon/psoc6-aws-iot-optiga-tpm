@@ -166,6 +166,7 @@ Software prerequisites:
      --with-crypto=mbed \
      --enable-nodl --with-maxloglevel=none --disable-util-io --disable-tcti-device \
      --disable-tcti-mssim --disable-tcti-swtpm --disable-tcti-pcap \
+     --disable-tcti-spi-ftdi --disable-tcti-spi-ltt2go --disable-tcti-i2c-ftdi \
      --disable-tcti-libtpms --disable-tcti-cmd --disable-fapi --disable-policy \
      CFLAGS="-DPATH_MAX=256 -DTSS2_TCTI_SUPPRESS_POLL_WARNINGS $compiler_flags"
 
@@ -373,17 +374,84 @@ $ make build -j$(nproc)
 ### TPM-based Device Onboarding to AWS IoT Core
 
 Based on what you have learned from the Mbed TLS examples, you can now prepare the MTB project for device onboarding to AWS IoT Core:
-1. Provision the TPM with the desired key.
-2. Generate the associated CSR (Certificate Signing Request).
-3. Onboard the PSoC6 to AWS IoT Core by submitting the CSR and, in exchange, obtaining the AWS CA-signed client certificate.
-4. Instead of using a software key, modify the code to accept the TPM-based `mbedtls_pk_context` key object. The file to be modified is `~/mtb_shared/secure-sockets/release-v3.3.0/source/COMPONENT_MBEDTLS/cy_tls.c`; look for `mbedtls_pk_init(...)`. The initialization of the key object can be found in the provided Mbed TLS examples.
+1. Provision the TPM with the desired key. For your convenience, you can reuse the project from the "Mbed TLS Examples" section and make modifications to the `~/mtb_projects/mtb_example_wifi_mqtt_client/source/mbedtls_examples.c` file.
+    ```
+    int mbedtls_examples()
+    {
+        if (rsa(true)) {
+            return 1;
+        }
+
+        return 0;
+    }
+    ```
+2. Capture the Certificate Signing Request (CSR) printed on the serial port. Create a file at `~/psoc6-aws-iot-optiga-tpm/aws-iot-core/out/tpm.csr` and store the CSR within it.
+    ```
+    -----BEGIN CERTIFICATE REQUEST-----
+    ...
+    -----END CERTIFICATE REQUEST-----
+    ```
+3. Onboard the PSoC6 to AWS IoT Core by submitting the CSR and, in exchange, obtaining the AWS CA-signed client certificate. For your convenience:
+    ```
+    # Install dependencies.
+    $ sudo apt install awscli curl
+
+    # Configure AWS account credentials and region.
+    $ aws configure
+
+    # Retrive the endpoint for later use.
+    $ aws iot describe-endpoint --endpoint-type iot:Data-ATS
+
+    # Create a thing in AWS IoT Core.
+    # The CSR will be sent to AWS, and in return, you will receive
+    # the client certificate (tpm.crt). Additionally, the script will
+    # fetch the AWS CA certificate for you. You will find all the certificates
+    # in ~/psoc6-aws-iot-optiga-tpm/aws-iot-core/out.
+    $ cd ~/psoc6-aws-iot-optiga-tpm/aws-iot-core
+    $ ./1_create_thing.sh
+
+    # Convert the certificates to C code format for later use.
+    $ ./2_pem_to_clang.sh
+    ```
+4. Instead of using a software key, modify the code to accept the TPM-based `mbedtls_pk_context` key object. The file to be modified is `~/mtb_projects/mtb_shared/secure-sockets/release-v3.3.0/source/COMPONENT_MBEDTLS/cy_tls.c`; look for `mbedtls_pk_init(...)`. The initialization of the key object can be found in the provided Mbed TLS examples. For your convenience, you may use the following snippet:
+    ```
+    /* load key */
+    #if 0
+    mbedtls_pk_init( &identity->private_key );
+
+    ret = mbedtls_pk_parse_key( &identity->private_key, (const unsigned char *) private_key, private_key_len+1, NULL, 0 );
+    if ( ret != 0 )
+    {
+        tls_cy_log_msg(CYLF_MIDDLEWARE, CY_LOG_ERR, "mbedtls_pk_parse_key failed with error %d\r\n", ret);
+        result = CY_RSLT_MODULE_TLS_PARSE_KEY;
+    }
+    #endif
+
+    #include "mbedtls_tpm_pk.h"
+
+    ESYS_CONTEXT *esys_ctx;
+    mbedtls_tpm_rsa_context *tpm_rsa_ctx;
+
+    tpm_open(&esys_ctx, NULL);
+
+    mbedtls_pk_init(&identity->private_key);
+    mbedtls_pk_setup(&identity->private_key, &tpm_rsa_pkcs_v15_info);
+
+    tpm_rsa_ctx = (mbedtls_tpm_rsa_context *)identity->private_key.pk_ctx;
+    tpm_rsa_init(tpm_rsa_ctx, true, esys_ctx);
+    ```
 5. Configure the WiFi connection in `~/mtb_projects/mtb_example_wifi_mqtt_client/configs/wifi_config.h`.
 6. Lastly, configure the MQTT connection in `~/mtb_projects/mtb_example_wifi_mqtt_client/configs/mqtt_client_config.h`:
-    - `ROOT_CA_CERTIFICATE`: The AWS CA certificate.
-    - `CLIENT_CERTIFICATE`: The client certificate.
-    - `MQTT_USERNAME`: Leave it empty.
-    - `MQTT_BROKER_ADDRESS`: Your AWS IoT endpoint address.
+    - `MQTT_BROKER_ADDRESS`: The endpoint address from step 3.
     - `MQTT_PORT`: 8883
+    - `MQTT_SECURE_CONNECTION`: 1
+    - `CLIENT_CERTIFICATE`: The client certificate from step 3.
+    - `ROOT_CA_CERTIFICATE`: The AWS CA certificate from step 3.
+7. When you have finished testing, remove the thing from AWS IoT Core:
+    ```
+    $ cd ~/psoc6-aws-iot-optiga-tpm/aws-iot-core
+    $ ./3_clean_thing.sh
+    ```
 
 ## Miscellaneous
 
